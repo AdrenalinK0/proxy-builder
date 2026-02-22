@@ -103,7 +103,9 @@
                 flow: params.flow || undefined,
                 encryption: params.encryption || 'none',
                 // ECH support
-                ech: params.ech || undefined
+                ech: params.ech || undefined,
+                // Insecure support
+                allowInsecure: params.allowInsecure === '1' || params.allowInsecure === 'true' || params.insecure === '1' || params.insecure === 'true'
             };
         } catch (e) {
             return { error: 'Failed to parse VLESS URL: ' + e.message };
@@ -132,7 +134,8 @@
                 security: config.tls || 'none',
                 sni: config.sni || undefined,
                 fp: config.fp || 'chrome',
-                alpn: config.alpn || undefined
+                alpn: config.alpn || undefined,
+                allowInsecure: config.tls === 'tls' && (config.allowInsecure === 1 || config.allowInsecure === true || config.insecure === 1 || config.insecure === true)
             };
         } catch (e) {
             return { error: 'Failed to parse VMess URL: ' + e.message };
@@ -163,7 +166,8 @@
                 pbk: params.pbk || undefined,
                 sid: params.sid || undefined,
                 spx: params.spx || undefined,
-                ech: params.ech || undefined
+                ech: params.ech || undefined,
+                allowInsecure: params.allowInsecure === '1' || params.allowInsecure === 'true' || params.insecure === '1' || params.insecure === 'true'
             };
         } catch (e) {
             return { error: 'Failed to parse Trojan URL: ' + e.message };
@@ -358,7 +362,7 @@
                 serverName: params.sni || params.server,
                 fingerprint: params.fp || 'chrome',
                 alpn: params.alpn ? params.alpn.split(',') : ['http/1.1'],
-                allowInsecure: false
+                allowInsecure: !!params.allowInsecure
             };
             // ECH support
             if (params.ech) {
@@ -372,7 +376,7 @@
                 shortId: params.sid || '',
                 spiderX: params.spx || '',
                 show: false,
-                allowInsecure: false
+                allowInsecure: !!params.allowInsecure
             };
         }
 
@@ -577,9 +581,10 @@
         const proxyOutbound = buildProxyOutbound(config1);
         const chainOutbound = buildChainOutbound(config2);
 
-        if (!proxyOutbound || !chainOutbound) return null;
+        const remark = `🔗 ${config1.protocol.toUpperCase()} → ${config2.protocol.toUpperCase()} | ${config2.server}:${config2.port}`;
 
         const fullConfig = {
+            remarks: remark,
             log: {
                 loglevel: logLevel
             },
@@ -650,7 +655,6 @@
             }
         };
 
-        const remark = `🔗 ${config1.protocol.toUpperCase()} → ${config2.protocol.toUpperCase()} | ${config2.server}:${config2.port}`;
         return { config: fullConfig, remark };
     }
 
@@ -678,6 +682,7 @@
         if (params.host) rows.push(['Host', params.host]);
         if (params.path) rows.push(['Path', truncateStr(params.path, 50)]);
         if (params.ech) rows.push(['ECH', '✅ Enabled']);
+        if (params.allowInsecure) rows.push(['Insecure', '⚠️ Allowed']);
         if (params.remark) rows.push(['Remark', params.remark]);
 
         container.innerHTML = rows.map(([label, value]) =>
