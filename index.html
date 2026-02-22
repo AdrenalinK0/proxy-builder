@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain Proxy Builder</title>
+    <meta name="description"
+        content="Chain two proxy configs together — supports VLESS, VMess, Trojan, Shadowsocks, SOCKS, HTTP">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="bg-glow bg-glow-3"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🔗</span>
+                <h1>Chain Proxy Builder</h1>
+            </div>
+            <p class="subtitle">Chain two proxy configs into a single Xray configuration</p>
+            <div class="protocol-badges">
+                <span class="badge badge-vless">VLESS</span>
+                <span class="badge badge-vmess">VMess</span>
+                <span class="badge badge-trojan">Trojan</span>
+                <span class="badge badge-ss">Shadowsocks</span>
+                <span class="badge badge-socks">SOCKS</span>
+                <span class="badge badge-http">HTTP</span>
+            </div>
+        </header>
+
+        <!-- Config Inputs -->
+        <div class="configs-grid">
+            <!-- Config 1: Main Proxy -->
+            <div class="config-card" id="config1-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">1️⃣</span>
+                        <div>
+                            <h2>Config 1 — Main Proxy</h2>
+                            <p class="card-hint">Any proxy config (this becomes the <code>proxy</code> outbound)</p>
+                        </div>
+                    </div>
+                    <span class="protocol-tag" id="protocol1-tag">—</span>
+                </div>
+                <div class="input-group">
+                    <textarea id="config1-input" class="config-input"
+                        placeholder="Paste proxy URL here...&#10;e.g. vless://uuid@address:port?params#remark"
+                        spellcheck="false"></textarea>
+                    <button class="btn-clear" id="clear1" title="Clear">✕</button>
+                </div>
+                <div class="parsed-info" id="parsed1"></div>
+            </div>
+
+            <!-- Config 2: Chain Proxy -->
+            <div class="config-card" id="config2-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-icon">2️⃣</span>
+                        <div>
+                            <h2>Config 2 — Chain Proxy</h2>
+                            <p class="card-hint">External proxy to chain through (this becomes the <code>chain</code>
+                                outbound)</p>
+                        </div>
+                    </div>
+                    <span class="protocol-tag" id="protocol2-tag">—</span>
+                </div>
+                <div class="input-group">
+                    <textarea id="config2-input" class="config-input"
+                        placeholder="Paste chain proxy URL here...&#10;e.g. vless://uuid@server:port?params#remark"
+                        spellcheck="false"></textarea>
+                    <button class="btn-clear" id="clear2" title="Clear">✕</button>
+                </div>
+                <div class="parsed-info" id="parsed2"></div>
+            </div>
+        </div>
+
+        <!-- Chain Flow Visualization -->
+        <div class="chain-flow" id="chain-flow">
+            <div class="flow-node flow-you">
+                <span class="flow-emoji">💻</span>
+                <span>You</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node flow-proxy" id="flow-proxy">
+                <span class="flow-emoji">☁️</span>
+                <span id="flow-proxy-label">Config 1</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node flow-chain" id="flow-chain">
+                <span class="flow-emoji">🔗</span>
+                <span id="flow-chain-label">Config 2</span>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node flow-target">
+                <span class="flow-emoji">🌐</span>
+                <span>Internet</span>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="settings-card">
+            <h3 class="settings-title">⚙️ Configuration Options</h3>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label for="dns-server">Remote DNS</label>
+                    <select id="dns-server">
+                        <option value="https://8.8.8.8/dns-query">Google DoH (8.8.8.8)</option>
+                        <option value="https://dns.google/dns-query">Google DoH (dns.google)</option>
+                        <option value="https://dns.adguard-dns.com/dns-query">AdGuard DoH</option>
+                        <option value="https://dns.quad9.net/dns-query">Quad9 DoH</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="socks-port">SOCKS Port</label>
+                    <input type="number" id="socks-port" value="10808" min="1" max="65535">
+                </div>
+                <div class="setting-item">
+                    <label for="log-level">Log Level</label>
+                    <select id="log-level">
+                        <option value="none">None</option>
+                        <option value="warning" selected>Warning</option>
+                        <option value="error">Error</option>
+                        <option value="info">Info</option>
+                        <option value="debug">Debug</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="generate-section">
+            <button class="btn-generate" id="btn-generate" disabled>
+                <span class="btn-icon">⚡</span>
+                Generate Chained Config
+            </button>
+            <p class="generate-hint" id="generate-hint">Paste both configs above to enable</p>
+        </div>
+
+        <!-- Output -->
+        <div class="output-section" id="output-section" style="display:none;">
+            <div class="output-header">
+                <h3>📋 Generated Xray Configuration</h3>
+                <div class="output-actions">
+                    <button class="btn-copy" id="btn-copy" title="Copy to clipboard">
+                        <span class="copy-icon">📋</span> Copy
+                    </button>
+                    <button class="btn-download" id="btn-download" title="Download as JSON">
+                        <span class="download-icon">💾</span> Download
+                    </button>
+                </div>
+            </div>
+            <div class="output-remark" id="output-remark"></div>
+            <pre class="output-code"><code id="output-json"></code></pre>
+        </div>
+
+        <!-- Info -->
+        <details class="info-section">
+            <summary>ℹ️ How Chain Proxy Works</summary>
+            <div class="info-content">
+                <p>A <strong>chain proxy</strong> routes your traffic through two proxies in sequence:</p>
+                <div class="info-flow">
+                    <code>You → Config 1 (Worker/CDN) → Config 2 (Chain) → Internet</code>
+                </div>
+                <p>This fixes your outgoing IP address to the chain proxy's IP, ensuring a consistent IP for all
+                    destinations.</p>
+                <h4>Supported Protocols</h4>
+                <ul>
+                    <li><strong>VLESS</strong> — <code>vless://uuid@server:port?params</code></li>
+                    <li><strong>VMess</strong> — <code>vmess://base64-json</code></li>
+                    <li><strong>Trojan</strong> — <code>trojan://password@server:port?params</code></li>
+                    <li><strong>Shadowsocks</strong> — <code>ss://base64(method:pass)@server:port</code></li>
+                    <li><strong>SOCKS</strong> — <code>socks://user:pass@server:port</code></li>
+                    <li><strong>HTTP</strong> — <code>http://user:pass@server:port</code></li>
+                </ul>
+                <h4>Supported Transports</h4>
+                <p>TCP, TCP (http header), WebSocket, gRPC, HTTPUpgrade</p>
+                <h4>Supported TLS</h4>
+                <p>TLS, Reality, None</p>
+            </div>
+        </details>
+
+        <footer class="footer">
+            <p>Based on <a href="https://github.com/bia-pain-bache/BPB-Worker-Panel"
+                    target="_blank">BPB-Worker-Panel</a> chain proxy logic</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
