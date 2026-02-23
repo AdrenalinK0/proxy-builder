@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chain Proxy Builder</title>
     <meta name="description"
-        content="Chain two proxy configs together — supports VLESS, VMess, Trojan, Shadowsocks, SOCKS, HTTP">
+        content="Chain two proxy configs together — supports VLESS, VMess, Trojan, Shadowsocks, SOCKS, HTTP, SSH">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -27,7 +27,7 @@
                 <span class="logo-icon">🔗</span>
                 <h1>Chain Proxy Builder</h1>
             </div>
-            <p class="subtitle">Chain two proxy configs into a single Xray configuration</p>
+            <p class="subtitle">Chain two proxy configs into Xray & Sing-box configurations</p>
             <div class="protocol-badges">
                 <span class="badge badge-vless">VLESS</span>
                 <span class="badge badge-vmess">VMess</span>
@@ -35,6 +35,7 @@
                 <span class="badge badge-ss">Shadowsocks</span>
                 <span class="badge badge-socks">SOCKS</span>
                 <span class="badge badge-http">HTTP</span>
+                <span class="badge badge-ssh">SSH <sup class="singbox-only-sup">sing-box</sup></span>
             </div>
         </header>
 
@@ -50,13 +51,43 @@
                             <p class="card-hint">Any proxy config (this becomes the <code>proxy</code> outbound)</p>
                         </div>
                     </div>
-                    <span class="protocol-tag" id="protocol1-tag">—</span>
+                    <div class="card-header-right">
+                        <button class="ssh-toggle" id="ssh-toggle1" title="Switch to SSH mode">
+                            <span class="ssh-toggle-icon">🔑</span> SSH
+                        </button>
+                        <span class="protocol-tag" id="protocol1-tag">—</span>
+                    </div>
                 </div>
-                <div class="input-group">
+                <div class="input-group" id="url-input-group1">
                     <textarea id="config1-input" class="config-input"
                         placeholder="Paste proxy URL here...&#10;e.g. vless://uuid@address:port?params#remark"
                         spellcheck="false"></textarea>
                     <button class="btn-clear" id="clear1" title="Clear">✕</button>
+                </div>
+                <div class="ssh-form" id="ssh-form1" style="display:none;">
+                    <div class="ssh-fields">
+                        <div class="ssh-field">
+                            <label for="ssh-server1">Server Address</label>
+                            <input type="text" id="ssh-server1" placeholder="e.g. 1.2.3.4 or example.com"
+                                spellcheck="false">
+                        </div>
+                        <div class="ssh-field ssh-field-small">
+                            <label for="ssh-port1">Port</label>
+                            <input type="number" id="ssh-port1" value="22" min="1" max="65535">
+                        </div>
+                        <div class="ssh-field">
+                            <label for="ssh-user1">Username</label>
+                            <input type="text" id="ssh-user1" placeholder="root" spellcheck="false">
+                        </div>
+                        <div class="ssh-field">
+                            <label for="ssh-pass1">Password</label>
+                            <div class="ssh-pass-wrapper">
+                                <input type="password" id="ssh-pass1" placeholder="Enter password" spellcheck="false">
+                                <button class="ssh-pass-toggle" data-target="ssh-pass1" title="Show/Hide">👁️</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-clear ssh-clear" id="ssh-clear1" title="Clear SSH fields">✕</button>
                 </div>
                 <div class="parsed-info" id="parsed1"></div>
             </div>
@@ -72,13 +103,43 @@
                                 outbound)</p>
                         </div>
                     </div>
-                    <span class="protocol-tag" id="protocol2-tag">—</span>
+                    <div class="card-header-right">
+                        <button class="ssh-toggle" id="ssh-toggle2" title="Switch to SSH mode">
+                            <span class="ssh-toggle-icon">🔑</span> SSH
+                        </button>
+                        <span class="protocol-tag" id="protocol2-tag">—</span>
+                    </div>
                 </div>
-                <div class="input-group">
+                <div class="input-group" id="url-input-group2">
                     <textarea id="config2-input" class="config-input"
                         placeholder="Paste chain proxy URL here...&#10;e.g. vless://uuid@server:port?params#remark"
                         spellcheck="false"></textarea>
                     <button class="btn-clear" id="clear2" title="Clear">✕</button>
+                </div>
+                <div class="ssh-form" id="ssh-form2" style="display:none;">
+                    <div class="ssh-fields">
+                        <div class="ssh-field">
+                            <label for="ssh-server2">Server Address</label>
+                            <input type="text" id="ssh-server2" placeholder="e.g. 1.2.3.4 or example.com"
+                                spellcheck="false">
+                        </div>
+                        <div class="ssh-field ssh-field-small">
+                            <label for="ssh-port2">Port</label>
+                            <input type="number" id="ssh-port2" value="22" min="1" max="65535">
+                        </div>
+                        <div class="ssh-field">
+                            <label for="ssh-user2">Username</label>
+                            <input type="text" id="ssh-user2" placeholder="root" spellcheck="false">
+                        </div>
+                        <div class="ssh-field">
+                            <label for="ssh-pass2">Password</label>
+                            <div class="ssh-pass-wrapper">
+                                <input type="password" id="ssh-pass2" placeholder="Enter password" spellcheck="false">
+                                <button class="ssh-pass-toggle" data-target="ssh-pass2" title="Show/Hide">👁️</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn-clear ssh-clear" id="ssh-clear2" title="Clear SSH fields">✕</button>
                 </div>
                 <div class="parsed-info" id="parsed2"></div>
             </div>
@@ -148,19 +209,49 @@
 
         <!-- Output -->
         <div class="output-section" id="output-section" style="display:none;">
-            <div class="output-header">
-                <h3>📋 Generated Xray Configuration</h3>
-                <div class="output-actions">
-                    <button class="btn-copy" id="btn-copy" title="Copy to clipboard">
-                        <span class="copy-icon">📋</span> Copy
-                    </button>
-                    <button class="btn-download" id="btn-download" title="Download as JSON">
-                        <span class="download-icon">💾</span> Download
-                    </button>
-                </div>
+            <!-- Output Tabs -->
+            <div class="output-tabs">
+                <button class="output-tab active" id="tab-xray" data-tab="xray">
+                    <span class="tab-icon">⚡</span> Xray
+                </button>
+                <button class="output-tab" id="tab-singbox" data-tab="singbox">
+                    <span class="tab-icon">📦</span> Sing-box
+                </button>
             </div>
-            <div class="output-remark" id="output-remark"></div>
-            <pre class="output-code"><code id="output-json"></code></pre>
+
+            <!-- Xray Output -->
+            <div class="output-panel active" id="panel-xray" data-panel="xray">
+                <div class="output-header">
+                    <h3>📋 Xray Configuration</h3>
+                    <div class="output-actions">
+                        <button class="btn-copy" id="btn-copy-xray" title="Copy to clipboard">
+                            <span class="copy-icon">📋</span> Copy
+                        </button>
+                        <button class="btn-download" id="btn-download-xray" title="Download as JSON">
+                            <span class="download-icon">💾</span> Download
+                        </button>
+                    </div>
+                </div>
+                <div class="output-remark" id="output-remark-xray"></div>
+                <pre class="output-code"><code id="output-json-xray"></code></pre>
+            </div>
+
+            <!-- Sing-box Output -->
+            <div class="output-panel" id="panel-singbox" data-panel="singbox">
+                <div class="output-header">
+                    <h3>📋 Sing-box Configuration</h3>
+                    <div class="output-actions">
+                        <button class="btn-copy" id="btn-copy-singbox" title="Copy to clipboard">
+                            <span class="copy-icon">📋</span> Copy
+                        </button>
+                        <button class="btn-download" id="btn-download-singbox" title="Download as JSON">
+                            <span class="download-icon">💾</span> Download
+                        </button>
+                    </div>
+                </div>
+                <div class="output-remark" id="output-remark-singbox"></div>
+                <pre class="output-code"><code id="output-json-singbox"></code></pre>
+            </div>
         </div>
 
         <!-- Info -->
@@ -181,15 +272,35 @@
                     <li><strong>Shadowsocks</strong> — <code>ss://base64(method:pass)@server:port</code></li>
                     <li><strong>SOCKS</strong> — <code>socks://user:pass@server:port</code></li>
                     <li><strong>HTTP</strong> — <code>http://user:pass@server:port</code></li>
+                    <li><strong>SSH</strong> — <em>Sing-box only</em> (4-field input: server, port, username, password)
+                    </li>
+                </ul>
+                <h4>Output Formats</h4>
+                <ul>
+                    <li><strong>Xray JSON</strong> — Use with any Xray-compatible client (v2rayN, v2rayNG, Nekoray,
+                        etc.)</li>
+                    <li><strong>Sing-box JSON</strong> — Use with <a href="https://sing-box.sagernet.org/"
+                            target="_blank">sing-box</a> client</li>
                 </ul>
                 <h4>Supported Transports</h4>
                 <p>TCP, TCP (http header), WebSocket, gRPC, HTTPUpgrade</p>
                 <h4>Supported TLS</h4>
                 <p>TLS, Reality, None</p>
+                <h4>⚠️ Important Notes</h4>
+                <ul>
+                    <li><strong>SOCKS & HTTP</strong> configs must include <strong>username and password</strong>.</li>
+                    <li><strong>Xray</strong> does not support <strong>raw</strong> (headerless TCP) configs.</li>
+                    <li><strong>Shadowsocks</strong> cannot have any transport (WebSocket, gRPC, etc.) and cannot have
+                        TLS.</li>
+                    <li><strong>SSH</strong> is only supported by <a href="https://sing-box.sagernet.org/"
+                            target="_blank">Sing-box</a> — Xray tab is disabled when SSH is used.</li>
+                </ul>
             </div>
         </details>
 
         <footer class="footer">
+            <p>Project Repository: <a href="https://github.com/Hidden-Node/proxy-builder"
+                    target="_blank">Hidden-Node/proxy-builder</a></p>
             <p>Based on <a href="https://github.com/bia-pain-bache/BPB-Worker-Panel"
                     target="_blank">BPB-Worker-Panel</a> chain proxy logic</p>
         </footer>

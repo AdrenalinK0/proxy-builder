@@ -1,6 +1,6 @@
 // ===================================================================
 // Chain Proxy Builder — script.js
-// Parses two proxy URLs and chains them into a full Xray JSON config
+// Parses two proxy URLs and chains them into Xray & Sing-box configs
 // ===================================================================
 
 (function () {
@@ -18,17 +18,41 @@
     const btnGenerate = document.getElementById('btn-generate');
     const generateHint = document.getElementById('generate-hint');
     const outputSection = document.getElementById('output-section');
-    const outputJson = document.getElementById('output-json');
-    const outputRemark = document.getElementById('output-remark');
-    const btnCopy = document.getElementById('btn-copy');
-    const btnDownload = document.getElementById('btn-download');
     const flowProxyLabel = document.getElementById('flow-proxy-label');
     const flowChainLabel = document.getElementById('flow-chain-label');
     const config1Card = document.getElementById('config1-card');
     const config2Card = document.getElementById('config2-card');
 
+    // SSH elements
+    const sshToggle1 = document.getElementById('ssh-toggle1');
+    const sshToggle2 = document.getElementById('ssh-toggle2');
+    const sshForm1 = document.getElementById('ssh-form1');
+    const sshForm2 = document.getElementById('ssh-form2');
+    const urlInputGroup1 = document.getElementById('url-input-group1');
+    const urlInputGroup2 = document.getElementById('url-input-group2');
+
+    // Xray output elements
+    const outputJsonXray = document.getElementById('output-json-xray');
+    const outputRemarkXray = document.getElementById('output-remark-xray');
+    const btnCopyXray = document.getElementById('btn-copy-xray');
+    const btnDownloadXray = document.getElementById('btn-download-xray');
+
+    // Sing-box output elements
+    const outputJsonSingbox = document.getElementById('output-json-singbox');
+    const outputRemarkSingbox = document.getElementById('output-remark-singbox');
+    const btnCopySingbox = document.getElementById('btn-copy-singbox');
+    const btnDownloadSingbox = document.getElementById('btn-download-singbox');
+
+    // Tab elements
+    const tabXray = document.getElementById('tab-xray');
+    const tabSingbox = document.getElementById('tab-singbox');
+    const panelXray = document.getElementById('panel-xray');
+    const panelSingbox = document.getElementById('panel-singbox');
+
     let parsedConfig1 = null;
     let parsedConfig2 = null;
+    let sshMode1 = false;
+    let sshMode2 = false;
 
     // ===== Base64 Helpers =====
     function safeAtob(str) {
@@ -74,6 +98,26 @@
         } catch { }
 
         return { error: 'Unknown protocol. Supported: vless, vmess, trojan, ss, socks, http' };
+    }
+
+    // ===== SSH Parser (reads from form fields) =====
+    function parseSSH(configNum) {
+        const server = document.getElementById(`ssh-server${configNum}`).value.trim();
+        const port = parseInt(document.getElementById(`ssh-port${configNum}`).value) || 22;
+        const user = document.getElementById(`ssh-user${configNum}`).value.trim() || 'root';
+        const password = document.getElementById(`ssh-pass${configNum}`).value;
+
+        if (!server) return null;
+        if (!password) return { error: 'Password is required for SSH' };
+
+        return {
+            protocol: 'ssh',
+            server: server,
+            port: port,
+            user: user,
+            password: password,
+            remark: `SSH ${server}:${port}`
+        };
     }
 
     function parseVless(url) {
@@ -658,6 +702,345 @@
         return { config: fullConfig, remark };
     }
 
+    // ===== Sing-box Config Generator =====
+    function generateSingboxConfig(config1, config2) {
+        const dnsServer = document.getElementById('dns-server').value;
+        const logLevel = document.getElementById('log-level').value;
+
+        const remark = `🔗 ${config1.protocol.toUpperCase()} → ${config2.protocol.toUpperCase()} | ${config2.server}:${config2.port}`;
+
+        // Build proxy outbound (config1)
+        const proxyOutbound = buildSingboxOutbound(config1, 'proxy', null);
+        // Build chain outbound (config2) — detours through proxy
+        const chainOutbound = buildSingboxOutbound(config2, 'chain', 'proxy');
+
+        // Map log level for Sing-box
+        const sbLogLevel = logLevel === 'none' ? undefined : (logLevel === 'warning' ? 'warn' : logLevel);
+
+        // Parse DNS host from URL
+        let dnsHost = '8.8.8.8';
+        let dnsType = 'https';
+        try {
+            const dnsUrl = new URL(dnsServer);
+            dnsHost = dnsUrl.hostname;
+            dnsType = dnsUrl.protocol.replace(':', '');
+        } catch { }
+
+        // Collect domains to bypass DNS (to prevent loopback)
+        const bypassDomains = new Set();
+        [config1, config2].forEach(cfg => {
+            if (cfg.server && !cfg.server.match(/^(?:\d{1,3}\.){3}\d{1,3}$/)) bypassDomains.add(cfg.server);
+            if (cfg.sni) bypassDomains.add(cfg.sni);
+            if (cfg.host) {
+                cfg.host.split(',').forEach(h => bypassDomains.add(h.trim()));
+            }
+            if (cfg.ech) {
+                const echDomain = cfg.ech.split('+')[0];
+                if (echDomain) bypassDomains.add(echDomain);
+            }
+        });
+
+        const singboxConfig = {
+            log: {
+                disabled: logLevel === 'none',
+                level: sbLogLevel,
+                timestamp: true
+            },
+            dns: {
+                servers: [
+                    {
+                        type: dnsType,
+                        server: dnsHost,
+                        detour: 'chain',
+                        tag: 'dns-remote'
+                    },
+                    {
+                        type: 'local',
+                        tag: 'dns-direct'
+                    }
+                ],
+                rules: [
+                    {
+                        clash_mode: 'Direct',
+                        server: 'dns-direct'
+                    },
+                    {
+                        clash_mode: 'Global',
+                        server: 'dns-remote'
+                    },
+                    {
+                        domain: Array.from(bypassDomains),
+                        server: 'dns-direct'
+                    }
+                ],
+                strategy: 'ipv4_only',
+                independent_cache: true
+            },
+            inbounds: [
+                {
+                    type: 'tun',
+                    tag: 'tun-in',
+                    address: ['172.19.0.1/28'],
+                    mtu: 9000,
+                    auto_route: true,
+                    strict_route: true,
+                    stack: 'mixed'
+                },
+                {
+                    type: 'mixed',
+                    tag: 'mixed-in',
+                    listen: '127.0.0.1',
+                    listen_port: 2080
+                }
+            ],
+            outbounds: [
+                chainOutbound,
+                proxyOutbound,
+                {
+                    type: 'direct',
+                    tag: 'direct'
+                }
+            ],
+            route: {
+                rules: [
+                    {
+                        ip_cidr: '172.19.0.2',
+                        action: 'hijack-dns'
+                    },
+                    {
+                        domain: Array.from(bypassDomains),
+                        outbound: 'direct'
+                    },
+                    {
+                        clash_mode: 'Direct',
+                        outbound: 'direct'
+                    },
+                    {
+                        action: 'sniff'
+                    },
+                    {
+                        protocol: 'dns',
+                        action: 'hijack-dns'
+                    },
+                    {
+                        ip_is_private: true,
+                        outbound: 'direct'
+                    },
+                    {
+                        network: 'udp',
+                        action: 'reject'
+                    }
+                ],
+                auto_detect_interface: true,
+                default_domain_resolver: {
+                    server: 'dns-direct',
+                    strategy: 'ipv4_only',
+                    rewrite_ttl: 60
+                },
+                final: 'chain'
+            },
+            ntp: {
+                enabled: true,
+                server: 'time.cloudflare.com',
+                server_port: 123,
+                domain_resolver: 'dns-direct',
+                interval: '30m',
+                write_to_system: false
+            },
+            experimental: {
+                cache_file: {
+                    enabled: true,
+                    store_fakeip: true
+                },
+                clash_api: {
+                    external_controller: '127.0.0.1:9090',
+                    external_ui: 'ui',
+                    default_mode: 'Rule',
+                    external_ui_download_url: 'https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip',
+                    external_ui_download_detour: 'direct'
+                }
+            }
+        };
+
+        return { config: singboxConfig, remark };
+    }
+
+    function buildSingboxOutbound(params, tag, detourTag) {
+        const outbound = {
+            tag: tag,
+            type: params.protocol === 'shadowsocks' ? 'shadowsocks' : params.protocol
+        };
+
+        // If this is a chain outbound, set detour
+        if (detourTag) {
+            outbound.detour = detourTag;
+        }
+
+        outbound.server = params.server;
+        outbound.server_port = params.port;
+
+        // Protocol-specific settings
+        switch (params.protocol) {
+            case 'vless':
+                outbound.uuid = params.uuid;
+                outbound.packet_encoding = '';
+                outbound.network = 'tcp';
+                if (params.flow) outbound.flow = params.flow;
+                break;
+
+            case 'vmess':
+                outbound.uuid = params.uuid;
+                outbound.security = 'auto';
+                outbound.alter_id = params.aid || 0;
+                outbound.network = 'tcp';
+                break;
+
+            case 'trojan':
+                outbound.password = params.password;
+                outbound.network = 'tcp';
+                break;
+
+            case 'shadowsocks':
+                outbound.method = params.method;
+                outbound.password = params.password;
+                outbound.network = 'tcp';
+                break;
+
+            case 'socks':
+                outbound.version = '5';
+                outbound.network = 'tcp';
+                if (params.user) outbound.username = params.user;
+                if (params.pass) outbound.password = params.pass;
+                break;
+
+            case 'http':
+                if (params.user) outbound.username = params.user;
+                if (params.pass) outbound.password = params.pass;
+                break;
+
+            case 'ssh':
+                outbound.type = 'ssh';
+                outbound.user = params.user || 'root';
+                outbound.password = params.password;
+                // SSH has no TLS/transport, return early
+                return outbound;
+
+            default:
+                return outbound;
+        }
+
+        // TLS settings
+        const security = params.security || 'none';
+        if (security === 'tls' || security === 'reality') {
+            const tls = {
+                enabled: true,
+                server_name: params.sni || params.host || params.server
+            };
+
+            if (params.allowInsecure) tls.insecure = true;
+
+            // ALPN
+            if (params.alpn) {
+                const alpnList = params.alpn.split(',').filter(v => v && v !== 'h2');
+                if (alpnList.length) tls.alpn = alpnList;
+            }
+
+            // uTLS fingerprint
+            if (params.fp) {
+                tls.utls = {
+                    enabled: true,
+                    fingerprint: params.fp
+                };
+            }
+
+            // Reality
+            if (security === 'reality' && params.pbk) {
+                tls.reality = {
+                    enabled: true,
+                    public_key: params.pbk,
+                    short_id: params.sid || ''
+                };
+            }
+
+            // ECH — param format: "query_server_name+dns_server" e.g. "workers.dev+udp://8.8.8.8"
+            if (params.ech) {
+                const echQueryServer = params.ech.split('+')[0];
+                tls.record_fragment = false;
+                tls.ech = {
+                    enabled: true,
+                    query_server_name: echQueryServer || params.sni || params.server
+                };
+            }
+
+            outbound.tls = tls;
+        }
+
+        // Transport settings
+        const transportType = params.type || 'tcp';
+        switch (transportType) {
+            case 'ws': {
+                const wsTransport = {
+                    type: 'ws',
+                    path: (params.path || '/').split('?ed=')[0],
+                    headers: {}
+                };
+                if (params.host) wsTransport.headers.Host = params.host;
+
+                // Early data from ?ed= in path
+                const edMatch = (params.path || '').match(/[?&]ed=(\d+)/);
+                if (edMatch) {
+                    wsTransport.max_early_data = parseInt(edMatch[1]);
+                    wsTransport.early_data_header_name = 'Sec-WebSocket-Protocol';
+                }
+                outbound.transport = wsTransport;
+                break;
+            }
+
+            case 'grpc': {
+                outbound.transport = {
+                    type: 'grpc',
+                    service_name: params.serviceName || ''
+                };
+                break;
+            }
+
+            case 'httpupgrade': {
+                outbound.transport = {
+                    type: 'httpupgrade',
+                    host: params.host,
+                    path: (params.path || '/').split('?ed=')[0]
+                };
+                break;
+            }
+
+            case 'tcp': {
+                if (params.headerType === 'http') {
+                    outbound.transport = {
+                        type: 'http',
+                        host: params.host ? params.host.split(',') : undefined,
+                        path: params.path || '/',
+                        method: 'GET',
+                        headers: {
+                            'Connection': ['keep-alive'],
+                            'Content-Type': ['application/octet-stream']
+                        }
+                    };
+                }
+                break;
+            }
+
+            case 'raw': {
+                // raw = tcp without header in Sing-box
+                break;
+            }
+        }
+
+        // Enable TCP fast open if available
+        if (params.tfo) outbound.tcp_fast_open = true;
+
+        return outbound;
+    }
+
     // ===== UI Render Helpers =====
     function renderParsedInfo(params, container) {
         if (!params || params.error) {
@@ -716,7 +1099,8 @@
             trojan: '#f05050',
             shadowsocks: '#3cd4f0',
             socks: '#4cdf86',
-            http: '#f0c040'
+            http: '#f0c040',
+            ssh: '#ff8c42'
         };
         return colors[protocol] || '#9090b0';
     }
@@ -754,8 +1138,15 @@
 
     // ===== Event Handlers =====
     function onInputChange(inputEl, parsedContainer, protocolTag, card, isConfig1) {
-        const val = inputEl.value.trim();
-        const parsed = val ? parseProxyURL(val) : null;
+        let parsed;
+        if (isConfig1 && sshMode1) {
+            parsed = parseSSH(1);
+        } else if (!isConfig1 && sshMode2) {
+            parsed = parseSSH(2);
+        } else {
+            const val = inputEl.value.trim();
+            parsed = val ? parseProxyURL(val) : null;
+        }
 
         if (isConfig1) {
             parsedConfig1 = parsed && !parsed.error ? parsed : null;
@@ -766,9 +1157,23 @@
         renderParsedInfo(parsed, parsedContainer);
         updateProtocolTag(protocolTag, parsed);
 
+        // For SSH mode, we also consider the card valid if server is filled
         card.classList.remove('valid', 'invalid');
-        if (val && parsed) {
-            card.classList.add(parsed.error ? 'invalid' : 'valid');
+        if (isConfig1 && sshMode1) {
+            const server = document.getElementById('ssh-server1').value.trim();
+            if (server && parsed) {
+                card.classList.add(parsed.error ? 'invalid' : 'valid');
+            }
+        } else if (!isConfig1 && sshMode2) {
+            const server = document.getElementById('ssh-server2').value.trim();
+            if (server && parsed) {
+                card.classList.add(parsed.error ? 'invalid' : 'valid');
+            }
+        } else {
+            const val = inputEl.value.trim();
+            if (val && parsed) {
+                card.classList.add(parsed.error ? 'invalid' : 'valid');
+            }
         }
 
         if (isConfig1 && parsedConfig1) {
@@ -802,37 +1207,62 @@
     function onGenerate() {
         if (!parsedConfig1 || !parsedConfig2) return;
 
-        const result = generateFullConfig(parsedConfig1, parsedConfig2);
-        if (!result) {
-            outputSection.style.display = 'none';
-            return;
+        const hasSSH = parsedConfig1.protocol === 'ssh' || parsedConfig2.protocol === 'ssh';
+
+        // Handle tabs visibility for SSH
+        if (hasSSH) {
+            tabXray.classList.add('disabled');
+            tabXray.title = 'SSH is not supported by Xray';
+            switchTab('singbox');
+        } else {
+            tabXray.classList.remove('disabled');
+            tabXray.title = '';
         }
 
-        outputRemark.textContent = result.remark;
-        outputJson.innerHTML = highlightJSON(result.config);
+        // Generate Xray config (skip if SSH is involved)
+        if (!hasSSH) {
+            const xrayResult = generateFullConfig(parsedConfig1, parsedConfig2);
+            if (!xrayResult) {
+                outputSection.style.display = 'none';
+                return;
+            }
+            outputRemarkXray.textContent = xrayResult.remark;
+            outputJsonXray.innerHTML = highlightJSON(xrayResult.config);
+        } else {
+            outputRemarkXray.textContent = '';
+            outputJsonXray.innerHTML = '<span style="color:#ff8c42">⚠️ SSH protocol is only supported by Sing-box. Xray config is not available.</span>';
+        }
+
+        // Generate Sing-box config
+        const singboxResult = generateSingboxConfig(parsedConfig1, parsedConfig2);
+        if (singboxResult) {
+            outputRemarkSingbox.textContent = singboxResult.remark;
+            outputJsonSingbox.innerHTML = highlightJSON(singboxResult.config);
+        }
+
         outputSection.style.display = 'block';
         outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    function onCopy() {
+    function doCopy(btn, configGenerator) {
         if (!parsedConfig1 || !parsedConfig2) return;
-        const result = generateFullConfig(parsedConfig1, parsedConfig2);
+        const result = configGenerator(parsedConfig1, parsedConfig2);
         if (!result) return;
 
         const text = JSON.stringify(result.config, null, 2);
         navigator.clipboard.writeText(text).then(() => {
-            btnCopy.classList.add('copied');
-            btnCopy.innerHTML = '<span class="copy-icon">✅</span> Copied!';
+            btn.classList.add('copied');
+            btn.innerHTML = '<span class="copy-icon">✅</span> Copied!';
             setTimeout(() => {
-                btnCopy.classList.remove('copied');
-                btnCopy.innerHTML = '<span class="copy-icon">📋</span> Copy';
+                btn.classList.remove('copied');
+                btn.innerHTML = '<span class="copy-icon">📋</span> Copy';
             }, 2000);
         });
     }
 
-    function onDownload() {
+    function doDownload(configGenerator, prefix) {
         if (!parsedConfig1 || !parsedConfig2) return;
-        const result = generateFullConfig(parsedConfig1, parsedConfig2);
+        const result = configGenerator(parsedConfig1, parsedConfig2);
         if (!result) return;
 
         const text = JSON.stringify(result.config, null, 2);
@@ -840,11 +1270,25 @@
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `chain-${parsedConfig1.protocol}-${parsedConfig2.protocol}-${parsedConfig2.server}.json`;
+        a.download = `${prefix}-${parsedConfig1.protocol}-${parsedConfig2.protocol}-${parsedConfig2.server}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+
+    // ===== Tab switching =====
+    function switchTab(tabName) {
+        [tabXray, tabSingbox].forEach(t => t.classList.remove('active'));
+        [panelXray, panelSingbox].forEach(p => p.classList.remove('active'));
+
+        if (tabName === 'xray') {
+            tabXray.classList.add('active');
+            panelXray.classList.add('active');
+        } else {
+            tabSingbox.classList.add('active');
+            panelSingbox.classList.add('active');
+        }
     }
 
     // ===== Wire Events =====
@@ -867,6 +1311,93 @@
     });
 
     btnGenerate.addEventListener('click', onGenerate);
-    btnCopy.addEventListener('click', onCopy);
-    btnDownload.addEventListener('click', onDownload);
+
+    // Xray copy/download
+    btnCopyXray.addEventListener('click', () => doCopy(btnCopyXray, generateFullConfig));
+    btnDownloadXray.addEventListener('click', () => doDownload(generateFullConfig, 'xray-chain'));
+
+    // Sing-box copy/download
+    btnCopySingbox.addEventListener('click', () => doCopy(btnCopySingbox, generateSingboxConfig));
+    btnDownloadSingbox.addEventListener('click', () => doDownload(generateSingboxConfig, 'singbox-chain'));
+
+    // Tab switching
+    tabXray.addEventListener('click', () => {
+        if (!tabXray.classList.contains('disabled')) switchTab('xray');
+    });
+    tabSingbox.addEventListener('click', () => switchTab('singbox'));
+
+    // ===== SSH Toggle & Form Events =====
+    function toggleSSHMode(configNum) {
+        const isConfig1 = configNum === 1;
+        const toggle = isConfig1 ? sshToggle1 : sshToggle2;
+        const sshForm = isConfig1 ? sshForm1 : sshForm2;
+        const urlGroup = isConfig1 ? urlInputGroup1 : urlInputGroup2;
+        const inputEl = isConfig1 ? config1Input : config2Input;
+        const parsedContainer = isConfig1 ? parsed1 : parsed2;
+        const protocolTag = isConfig1 ? protocol1Tag : protocol2Tag;
+        const card = isConfig1 ? config1Card : config2Card;
+
+        if (isConfig1) {
+            sshMode1 = !sshMode1;
+        } else {
+            sshMode2 = !sshMode2;
+        }
+
+        const active = isConfig1 ? sshMode1 : sshMode2;
+        toggle.classList.toggle('active', active);
+
+        if (active) {
+            urlGroup.style.display = 'none';
+            sshForm.style.display = 'block';
+            inputEl.value = '';
+        } else {
+            urlGroup.style.display = '';
+            sshForm.style.display = 'none';
+        }
+
+        // Trigger re-parse
+        onInputChange(inputEl, parsedContainer, protocolTag, card, isConfig1);
+    }
+
+    sshToggle1.addEventListener('click', () => toggleSSHMode(1));
+    sshToggle2.addEventListener('click', () => toggleSSHMode(2));
+
+    // SSH field input events
+    ['ssh-server1', 'ssh-port1', 'ssh-user1', 'ssh-pass1'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+            if (sshMode1) onInputChange(config1Input, parsed1, protocol1Tag, config1Card, true);
+        });
+    });
+    ['ssh-server2', 'ssh-port2', 'ssh-user2', 'ssh-pass2'].forEach(id => {
+        document.getElementById(id).addEventListener('input', () => {
+            if (sshMode2) onInputChange(config2Input, parsed2, protocol2Tag, config2Card, false);
+        });
+    });
+
+    // SSH clear buttons
+    document.getElementById('ssh-clear1').addEventListener('click', () => {
+        ['ssh-server1', 'ssh-user1', 'ssh-pass1'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('ssh-port1').value = '22';
+        onInputChange(config1Input, parsed1, protocol1Tag, config1Card, true);
+    });
+    document.getElementById('ssh-clear2').addEventListener('click', () => {
+        ['ssh-server2', 'ssh-user2', 'ssh-pass2'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('ssh-port2').value = '22';
+        onInputChange(config2Input, parsed2, protocol2Tag, config2Card, false);
+    });
+
+    // SSH password show/hide toggle
+    document.querySelectorAll('.ssh-pass-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const target = document.getElementById(btn.dataset.target);
+            if (target.type === 'password') {
+                target.type = 'text';
+                btn.textContent = '🔒';
+            } else {
+                target.type = 'password';
+                btn.textContent = '👁️';
+            }
+        });
+    });
 })();
