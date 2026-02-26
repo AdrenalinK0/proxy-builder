@@ -43,11 +43,25 @@
     const btnCopySingbox = document.getElementById('btn-copy-singbox');
     const btnDownloadSingbox = document.getElementById('btn-download-singbox');
 
+    // Nekoray output elements
+    const outputJsonSingboxClient = document.getElementById('output-json-singbox-client');
+    const outputRemarkSingboxClient = document.getElementById('output-remark-singbox-client');
+    const btnCopySingboxClient = document.getElementById('btn-copy-singbox-client');
+    const btnDownloadSingboxClient = document.getElementById('btn-download-singbox-client');
+
+    // Nekobox output elements
+    const outputJsonNekobox = document.getElementById('output-json-nekobox');
+    const outputRemarkNekobox = document.getElementById('output-remark-nekobox');
+    const btnCopyNekobox = document.getElementById('btn-copy-nekobox');
+    const btnDownloadNekobox = document.getElementById('btn-download-nekobox');
+
     // Tab elements
     const tabXray = document.getElementById('tab-xray');
     const tabSingbox = document.getElementById('tab-singbox');
+    const tabSingboxClient = document.getElementById('tab-singbox-client');
     const panelXray = document.getElementById('panel-xray');
     const panelSingbox = document.getElementById('panel-singbox');
+    const panelSingboxClient = document.getElementById('panel-singbox-client');
 
     let parsedConfig1 = null;
     let parsedConfig2 = null;
@@ -865,6 +879,175 @@
         return { config: singboxConfig, remark };
     }
 
+    // ===== Nekoray Config Generator (Sing-box compatible) =====
+    function generateSingboxClientConfig(config1, config2) {
+        const dnsServer = document.getElementById('dns-server').value;
+        const logLevel = document.getElementById('log-level').value;
+
+        const remark = `🔗 NEKORAY: ${config1.protocol.toUpperCase()} → ${config2.protocol.toUpperCase()} | ${config2.server}:${config2.port}`;
+
+        // Build hop-1 outbound (config1)
+        const hop1Outbound = buildSingboxOutbound(config1, 'hop-1', null);
+        // Force xudp for vless if not set
+        if (config1.protocol === 'vless' && !hop1Outbound.packet_encoding) {
+            hop1Outbound.packet_encoding = 'xudp';
+        }
+
+        // Build proxy outbound (config2) — detours through hop-1
+        const proxyOutbound = buildSingboxOutbound(config2, 'proxy', 'hop-1');
+        if (config2.protocol === 'vless' && !proxyOutbound.packet_encoding) {
+            proxyOutbound.packet_encoding = 'xudp';
+        }
+
+        // Map log level for Sing-box
+        const sbLogLevel = logLevel === 'none' ? 'info' : (logLevel === 'warning' ? 'warn' : logLevel);
+
+        const singboxClientConfig = {
+            log: {
+                level: sbLogLevel
+            },
+            dns: {
+                servers: [
+                    {
+                        address: dnsServer,
+                        detour: 'proxy',
+                        tag: 'dns-remote'
+                    },
+                    {
+                        address: '1.1.1.1',
+                        detour: 'direct',
+                        tag: 'dns-direct'
+                    }
+                ],
+                rules: [
+                    {
+                        outbound: 'any',
+                        server: 'dns-direct'
+                    }
+                ]
+            },
+            inbounds: [
+                {
+                    listen: '127.0.0.1',
+                    listen_port: 2080,
+                    sniff: true,
+                    tag: 'mixed-in',
+                    type: 'mixed'
+                }
+            ],
+            outbounds: [
+                hop1Outbound,
+                proxyOutbound,
+                {
+                    tag: 'direct',
+                    type: 'direct'
+                },
+                {
+                    tag: 'dns-out',
+                    type: 'dns'
+                }
+            ],
+            route: {
+                auto_detect_interface: true,
+                final: 'proxy',
+                rules: [
+                    {
+                        outbound: 'dns-out',
+                        protocol: 'dns'
+                    }
+                ]
+            }
+        };
+
+        return { config: singboxClientConfig, remark };
+    }
+
+    // ===== Nekobox Config Generator (Android Optimized) =====
+    function generateNekoboxConfig(config1, config2) {
+        const dnsServer = document.getElementById('dns-server').value;
+        const logLevel = document.getElementById('log-level').value;
+
+        const remark = `🔗 NEKOBOX: ${config1.protocol.toUpperCase()} → ${config2.protocol.toUpperCase()} | ${config2.server}:${config2.port}`;
+
+        // Build hop-1 outbound (config1)
+        const hop1Outbound = buildSingboxOutbound(config1, 'hop-1', null);
+        if (config1.protocol === 'vless' && !hop1Outbound.packet_encoding) {
+            hop1Outbound.packet_encoding = 'xudp';
+        }
+
+        // Build proxy outbound (config2) — detours through hop-1
+        const proxyOutbound = buildSingboxOutbound(config2, 'proxy', 'hop-1');
+        if (config2.protocol === 'vless' && !proxyOutbound.packet_encoding) {
+            proxyOutbound.packet_encoding = 'xudp';
+        }
+
+        // Map log level for Sing-box
+        const sbLogLevel = logLevel === 'none' ? 'info' : (logLevel === 'warning' ? 'warn' : logLevel);
+
+        const nekoboxConfig = {
+            log: {
+                level: sbLogLevel
+            },
+            dns: {
+                servers: [
+                    {
+                        tag: 'dns-remote',
+                        address: dnsServer,
+                        detour: 'proxy'
+                    },
+                    {
+                        tag: 'dns-direct',
+                        address: '1.1.1.1',
+                        detour: 'direct'
+                    }
+                ],
+                rules: [
+                    {
+                        outbound: 'any',
+                        server: 'dns-direct'
+                    }
+                ]
+            },
+            inbounds: [
+                {
+                    type: 'tun',
+                    tag: 'tun-in',
+                    interface_name: 'tun0',
+                    inet4_address: '172.19.0.1/30',
+                    auto_route: true,
+                    strict_route: true,
+                    stack: 'system',
+                    sniff: true,
+                    sniff_override_destination: false
+                }
+            ],
+            outbounds: [
+                hop1Outbound,
+                proxyOutbound,
+                {
+                    type: 'direct',
+                    tag: 'direct'
+                },
+                {
+                    type: 'dns',
+                    tag: 'dns-out'
+                }
+            ],
+            route: {
+                auto_detect_interface: true,
+                final: 'proxy',
+                rules: [
+                    {
+                        protocol: 'dns',
+                        outbound: 'dns-out'
+                    }
+                ]
+            }
+        };
+
+        return { config: nekoboxConfig, remark };
+    }
+
     function buildSingboxOutbound(params, tag, detourTag) {
         const outbound = {
             tag: tag,
@@ -1240,6 +1423,20 @@
             outputJsonSingbox.innerHTML = highlightJSON(singboxResult.config);
         }
 
+        // Generate Nekoray config
+        const singboxClientResult = generateSingboxClientConfig(parsedConfig1, parsedConfig2);
+        if (singboxClientResult) {
+            outputRemarkSingboxClient.textContent = singboxClientResult.remark;
+            outputJsonSingboxClient.innerHTML = highlightJSON(singboxClientResult.config);
+        }
+
+        // Generate Nekobox config
+        const nekoboxResult = generateNekoboxConfig(parsedConfig1, parsedConfig2);
+        if (nekoboxResult) {
+            outputRemarkNekobox.textContent = nekoboxResult.remark;
+            outputJsonNekobox.innerHTML = highlightJSON(nekoboxResult.config);
+        }
+
         outputSection.style.display = 'block';
         outputSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -1291,6 +1488,27 @@
         }
     }
 
+    function switchSubTab(subTabName) {
+        const subTabs = document.querySelectorAll('.sub-tab');
+        const subPanels = document.querySelectorAll('.sub-panel');
+
+        subTabs.forEach(t => {
+            if (t.dataset.subtab === subTabName) {
+                t.classList.add('active');
+            } else {
+                t.classList.remove('active');
+            }
+        });
+
+        subPanels.forEach(p => {
+            if (p.id === `subpanel-${subTabName}`) {
+                p.classList.add('active');
+            } else {
+                p.classList.remove('active');
+            }
+        });
+    }
+
     // ===== Wire Events =====
     config1Input.addEventListener('input', () =>
         onInputChange(config1Input, parsed1, protocol1Tag, config1Card, true));
@@ -1320,11 +1538,26 @@
     btnCopySingbox.addEventListener('click', () => doCopy(btnCopySingbox, generateSingboxConfig));
     btnDownloadSingbox.addEventListener('click', () => doDownload(generateSingboxConfig, 'singbox-chain'));
 
+    // Nekoray copy/download
+    btnCopySingboxClient.addEventListener('click', () => doCopy(btnCopySingboxClient, generateSingboxClientConfig));
+    btnDownloadSingboxClient.addEventListener('click', () => doDownload(generateSingboxClientConfig, 'nekoray-chain'));
+
+    // Nekobox copy/download
+    btnCopyNekobox.addEventListener('click', () => doCopy(btnCopyNekobox, generateNekoboxConfig));
+    btnDownloadNekobox.addEventListener('click', () => doDownload(generateNekoboxConfig, 'nekobox-chain'));
+
     // Tab switching
     tabXray.addEventListener('click', () => {
         if (!tabXray.classList.contains('disabled')) switchTab('xray');
     });
     tabSingbox.addEventListener('click', () => switchTab('singbox'));
+
+    // Sub-tab switching
+    document.querySelectorAll('.sub-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchSubTab(btn.dataset.subtab);
+        });
+    });
 
     // ===== SSH Toggle & Form Events =====
     function toggleSSHMode(configNum) {

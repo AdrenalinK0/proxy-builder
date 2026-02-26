@@ -12,12 +12,15 @@ A powerful, standalone web application to chain two proxy configurations into a 
 - **ECH Support**: Automatically parses and includes ECH config for secure connections.
 - **Client-Side Only**: All processing happens in your browser. No data is sent to any server.
 
-## 📦 Output Formats
-
 | Output | Client |
 |--------|--------|
 | **Xray JSON** | Use with any Xray-compatible client (v2rayN, v2rayNG, Nekoray, etc.) |
-| **Sing-box JSON** | Use with [sing-box](https://sing-box.sagernet.org/) client |
+| **Sing-box JSON** | Nested tabs for different client types (see below). |
+
+### 📦 Sing-box Sub-formats
+- **Standard**: The regular Sing-box configuration.
+- **Nekoray**: High compatibility format optimized for **Nekoray**.
+- **Nekobox (Android)**: Optimized for Android with a **TUN inbound**, ensuring proper VPN recognition (key icon) and mobile stability.
 
 ## 🔗 How it Works
 
@@ -71,7 +74,7 @@ TLS, Reality, None
 
 ## 🛡️ Credits
 
-This project draws inspiration and logic from the [BPB-Worker-Panel](https://github.com/bia-pain-bache/BPB-Worker-Panel) project.
+This project draws inspiration and logic from the [BPB-Worker-Panel](https://github.com/bia-pain-bache/BPB-Worker-Panel) project and this [Sing-box configuration](https://gist.github.com/alireza-delavari/62e56af0d59c92b5b1798f1442f90f61).
 
 ---
 Built with ❤️ for the privacy community.

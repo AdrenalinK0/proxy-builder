@@ -238,19 +238,69 @@
 
             <!-- Sing-box Output -->
             <div class="output-panel" id="panel-singbox" data-panel="singbox">
-                <div class="output-header">
-                    <h3>📋 Sing-box Configuration</h3>
-                    <div class="output-actions">
-                        <button class="btn-copy" id="btn-copy-singbox" title="Copy to clipboard">
-                            <span class="copy-icon">📋</span> Copy
-                        </button>
-                        <button class="btn-download" id="btn-download-singbox" title="Download as JSON">
-                            <span class="download-icon">💾</span> Download
-                        </button>
-                    </div>
+                <!-- Sub Tabs for Sing-box -->
+                <div class="sub-tabs">
+                    <button class="sub-tab active" data-subtab="singbox-standard">
+                        Standard
+                    </button>
+                    <button class="sub-tab" data-subtab="singbox-nekoray">
+                        Nekoray
+                    </button>
+                    <button class="sub-tab" data-subtab="singbox-nekobox">
+                        Nekobox
+                    </button>
                 </div>
-                <div class="output-remark" id="output-remark-singbox"></div>
-                <pre class="output-code"><code id="output-json-singbox"></code></pre>
+
+                <!-- Sub Panel: Standard -->
+                <div class="sub-panel active" id="subpanel-singbox-standard">
+                    <div class="output-header">
+                        <h3>📋 Sing-box Configuration</h3>
+                        <div class="output-actions">
+                            <button class="btn-copy" id="btn-copy-singbox" title="Copy to clipboard">
+                                <span class="copy-icon">📋</span> Copy
+                            </button>
+                            <button class="btn-download" id="btn-download-singbox" title="Download as JSON">
+                                <span class="download-icon">💾</span> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="output-remark" id="output-remark-singbox"></div>
+                    <pre class="output-code"><code id="output-json-singbox"></code></pre>
+                </div>
+
+                <!-- Sub Panel: Nekoray -->
+                <div class="sub-panel" id="subpanel-singbox-nekoray">
+                    <div class="output-header">
+                        <h3>📋 Nekoray Configuration</h3>
+                        <div class="output-actions">
+                            <button class="btn-copy" id="btn-copy-singbox-client" title="Copy to clipboard">
+                                <span class="copy-icon">📋</span> Copy
+                            </button>
+                            <button class="btn-download" id="btn-download-singbox-client" title="Download as JSON">
+                                <span class="download-icon">💾</span> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="output-remark" id="output-remark-singbox-client"></div>
+                    <pre class="output-code"><code id="output-json-singbox-client"></code></pre>
+                </div>
+
+                <!-- Sub Panel: Nekobox -->
+                <div class="sub-panel" id="subpanel-singbox-nekobox">
+                    <div class="output-header">
+                        <h3>📋 Nekobox Configuration</h3>
+                        <div class="output-actions">
+                            <button class="btn-copy" id="btn-copy-nekobox" title="Copy to clipboard">
+                                <span class="copy-icon">📋</span> Copy
+                            </button>
+                            <button class="btn-download" id="btn-download-nekobox" title="Download as JSON">
+                                <span class="download-icon">💾</span> Download
+                            </button>
+                        </div>
+                    </div>
+                    <div class="output-remark" id="output-remark-nekobox"></div>
+                    <pre class="output-code"><code id="output-json-nekobox"></code></pre>
+                </div>
             </div>
         </div>
 
